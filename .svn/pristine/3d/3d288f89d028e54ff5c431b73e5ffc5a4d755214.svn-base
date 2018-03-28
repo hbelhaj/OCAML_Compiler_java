@@ -1,0 +1,76 @@
+open AST
+open Location
+open Type
+
+type env_global = {
+  classes : (string, env_class) Hashtbl.t ;
+  mutable current : string
+}
+
+type function_desc = {
+  ftype: Type.t;
+  fargs: argument list
+}
+
+type env_classe = {
+  mutable classe_parent : Type.ref_type;
+  constructeurs : (string, function_desc) Hashtbl.t;
+  mutable methodes : (string, function_desc) Hashtbl.t;
+  mutable attributs : (string, Type.t) Hashtbl.t;
+  
+}
+
+
+
+let vType v =
+  match v with
+  | Boolean b -> Some(Type.Primitive(Type.Boolean))
+  | Char c -> Some(Type.Primitive(Type.Char))
+  | Int i -> Some(Type.Primitive(Type.Int))
+  | Float f -> Some(Type.Primitive(Type.Float))
+  | Null -> None
+  | String s -> Some(Type.Ref({ tpath = []; tid = "String" })) 
+
+type env = {
+  return_type: Type.t;
+  vars_type: (string, Type.t) Hashtbl.t
+}
+
+
+let env_classes_static = 
+	    [
+                {name="Boolean"; classe_parent=Some "Object"; methodes=[]; attributs=[]};
+		{name="Int"; classe_parent=Some "Object"; methodes=[]; attributs=[]};
+		{name="Object"; classe_parent=None; methodes=[]; attributes=[]};
+                {name="String"; classe_parent=Some "Object"; methodes=[]; attributs=[]};
+            ]
+
+ 
+let rec type_of_classname current classename loc = 
+	match current with 
+	| [] -> raise (PError(UndefinedType(string_of_classname cn), loc))
+	| t::q when t.name = (string_of_classname classename) -> t.name
+        | t::q -> type_of_classname q classename loc
+
+
+
+let rec get_classdef env_classe classname loc = 
+	let func c = 
+		if (c.name = classname) then true else false
+	in match env_classe with
+	| [] -> raise (PError(UndefinedType(classname), loc))
+        | t::q -> if (func t) then t else get_classdef q classname loc
+
+
+let rec is_parent env_classe classe_parent classe_fille =
+	match classe_parent, classe_fille with 
+	| None, _ | _, None -> false
+	| _, Some classename -> 
+		let classdef_fille = get_classdef env_classe classename Location.none
+		in if (classdef_fille.classe_parent = classe_parent) then true else 
+			
+   is_parent env_classe classe_parent classdef_fille.classe_parent
+
+
+
+

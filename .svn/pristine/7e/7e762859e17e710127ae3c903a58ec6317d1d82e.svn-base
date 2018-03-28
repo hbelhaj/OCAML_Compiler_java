@@ -1,0 +1,207 @@
+open AST
+open Location
+open Type
+
+type env_global = {
+  classes : (string, env_class) Hashtbl.t ;
+  mutable current : string
+}
+
+type function_desc = {
+  ftype: Type.t;
+  fargs: argument list
+}
+
+type env_classe = {
+  classe_parent : Type.ref_type;
+  constructeurs : (string, function_desc) Hashtbl.t;
+   methodes : (string, function_desc) Hashtbl.t;
+   attributs : (string, Type.t) Hashtbl.t;
+  
+}
+
+
+
+let vType v =
+  match v with
+  | Boolean b -> Some(Type.Primitive(Type.Boolean))
+  | Char c -> Some(Type.Primitive(Type.Char))
+  | Int i -> Some(Type.Primitive(Type.Int))
+  | Float f -> Some(Type.Primitive(Type.Float))
+  | Null -> None
+  | String s -> Some(Type.Ref({ tpath = []; tid = "String" })) 
+
+type env = {
+  return_type: Type.t;
+  vars: (string, Type.t) Hashtbl.t
+}
+
+
+let env_classes_static = 
+	    [
+                {name="Boolean"; classe_parent=Some "Object"; methodes=[]; attributs=[]};
+		{name="Int"; classe_parent=Some "Object"; methodes=[]; attributs=[]};
+		{name="Object"; classe_parent=None; methodes=[]; attributes=[]};
+                {name="String"; classe_parent=Some "Object"; methodes=[]; attributs=[]};
+            ]
+
+ (* typing a class *)
+let rec type_of_classname current classename loc = 
+	match current with 
+	| [] -> raise (PError(UndefinedType(string_of_classname cn), loc))
+	| t::q when t.name = (string_of_classname classename) -> t.name
+        | t::q -> type_of_classname q classename loc
+
+
+(* return class definition *)
+
+let rec get_classdef env_classe classname loc = 
+	let func c = 
+		if (c.name = classname) then true else false
+	in match env_classe with
+	| [] -> raise (PError(UndefinedType(classname), loc))
+        | t::q -> if (func t) then t else get_classdef q classname loc
+
+
+
+let rec is_parent env_classe classe_parent classe_fille =
+	match classe_parent, classe_fille with 
+	| None, _ | _, None -> false
+	| _, Some classename -> 
+		let classdef_fille = get_classdef env_classe classename Location.none
+		in if (classdef_fille.classe_parent = classe_parent) then true else 
+			
+   is_parent env_classe classe_parent classdef_fille.classe_parent
+
+(* check reference type given the global env and real type and apparent type *)
+let rec verif_ref_type ( gen_env : env_global) (type_apparent : Type.ref_type) (type_reel : Type.ref_type) =
+
+if type_apparent.tid <> type_reel.tid then
+ if type_apparent.tid = "Object" then () else
+	let pere = (Hashtbl.find gen_env.classes type_reel.tid).classe_parent in
+	 if type_apparent <> pere then verif_ref_type gen_env type_apparent pere
+	 (* else pere.tid = "Object" then raise( ) *)
+
+
+(* add a variable to env *)
+
+let ajouter_variable env name vartype =
+ if Hashtbl.mem env.vars name)<> true 
+	then Hashtbl.add env.vars name vartype
+(*else raise exception *)
+
+
+
+(*type variable declaration and add it to env *)
+
+let type_declar_var gen_env env decl =
+ match decl with
+	|(t,name,None) -> ajouter_variable env nom t
+	|(t, name, Some e) -> checkTypeExpression gen_env env e;
+	(* if Some(t) <> e.etype then raise exception *) 
+	|(None , name , None) -> ()
+	|(None , name , Some e) -> ()
+
+
+
+
+
+
+(* add args of method or a constructor to env *)
+
+let ajouter_fonction_args env func = if (Hashtbl.mem env.vars func.pident) <> true 
+then Hashtbl.add env.vars func.pident finc.ptype
+
+(* else raise exception *)
+
+(* type a method and constructor and a create a new env for it *)
+
+let type_method gen_env meth = 
+let env = { return_type = meth.return_type , vars = Hashtbl.create 20 } in
+
+List.iter (ajouter_fonction_args env ) meth.margstype;
+List.iter (type_statement gen_env env) meth.mbody
+
+
+let type_constructeur gen_env construct =
+let cenv = { return_type = Type.Ref ({tpath = [] ; tid = c.cname , vars = Hashtbl.create 20 } in 
+
+List.iter (ajouter_fonction_args cenv ) construct.cargstype;
+List.iter (type_statement gen_env cenv) construct.cbody
+
+(* type an attribute *)
+
+
+let type_attribut gen_env att = match att.adefault with
+	|None -> ()
+	|Some(e) -> checkTypeExpression gen_env { returntype = Type.Void; vars =Hashtbl.create 1} e; let type_attribut = Some(att.atype) in verif_ref_type gen_env type_attribut e.etype
+
+(*check if  *)
+let verif_assign_operator_type x op y =
+  if x <> y then
+    (match x with
+     | Some(Type.Ref(type_apparent)) -> if y <> None then
+       (match y with
+        | Some(Type.Ref(type_reel)) -> verif_ref_type gen_env type_apparent type_reel )
+      (*  | _ -> raise *)
+(* | _ -> raise *)
+
+
+(*type class *)
+
+let type_class gen_env cl = List.iter ( type_method gen_env) cl.cmethods; List.iter ( type_constructeur gen_env) cl.cconsts; List.iter ( type_attribut gen_env) cl.cattributes
+
+(* compare arguments of a constructor given a list of arguments *)
+
+let args_constructeur_compare name args args2 = if List.length args <> List.length args2.fargs then ()
+	else try
+	List.iter2 arg_compare args args2.fargs;
+	(* raise exception if all arguments are the same 
+	with 
+	| exception  *)
+
+
+(* let arg_compare x y = if x.ptype <> y.ptype then raise(exception) *)	
+
+
+(* add a class to gen_env *)
+let ajouter_class gen_env cl = List.iter(ajouter_methode gen env) cl.cmethods;
+	List.iter(ajouter_attribut gen_env) cl.cattributes;
+	List.iter(ajouter_constructeur gen_env) cl.cconsts
+	
+	
+
+
+(**)
+
+
+(* to do type statement *)
+(*to do add method and constructor and attributes to env*)
+(* to do function for calling methods *)
+(* to do errors and exceptions *)
+
+
+
+
+
+
+
+
+ 
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

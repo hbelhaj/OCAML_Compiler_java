@@ -1,0 +1,38 @@
+### Starting build.
+# Target: Main/Main.ml.depends, tags: { extension:ml, file:Main/Main.ml, ocaml, ocamldep, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamldep -modules Main/Main.ml > Main/Main.ml.depends # cached
+# Target: Main/Compile.ml.depends, tags: { extension:ml, file:Main/Compile.ml, ocaml, ocamldep, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamldep -modules Main/Compile.ml > Main/Compile.ml.depends # cached
+# Target: Parsing/AST.ml.depends, tags: { extension:ml, file:Parsing/AST.ml, ocaml, ocamldep, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamldep -modules Parsing/AST.ml > Parsing/AST.ml.depends
+# Target: Utils/ListII.mli.depends, tags: { extension:mli, file:Utils/ListII.mli, ocaml, ocamldep, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamldep -modules Utils/ListII.mli > Utils/ListII.mli.depends
+# Target: Utils/Location.mli.depends, tags: { extension:mli, file:Utils/Location.mli, ocaml, ocamldep, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamldep -modules Utils/Location.mli > Utils/Location.mli.depends
+# Target: Typing/Type.mli.depends, tags: { extension:mli, file:Typing/Type.mli, ocaml, ocamldep, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamldep -modules Typing/Type.mli > Typing/Type.mli.depends
+# Target: Utils/ListII.cmi, tags: { byte, compile, extension:mli, file:Utils/ListII.mli, interf, ocaml, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamlc -c -w a -I Utils -I Typing -I Parsing -I Evaluator -I Compiling -I Main -o Utils/ListII.cmi Utils/ListII.mli
+# Target: Utils/Location.cmi, tags: { byte, compile, extension:mli, file:Utils/Location.mli, interf, ocaml, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamlc -c -w a -I Utils -I Typing -I Parsing -I Evaluator -I Compiling -I Main -o Utils/Location.cmi Utils/Location.mli
+# Target: Typing/Type.cmi, tags: { byte, compile, extension:mli, file:Typing/Type.mli, interf, ocaml, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamlc -c -w a -I Typing -I Parsing -I Evaluator -I Compiling -I Main -I Utils -o Typing/Type.cmi Typing/Type.mli
+# Target: Parsing/Error.mli.depends, tags: { extension:mli, file:Parsing/Error.mli, ocaml, ocamldep, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamldep -modules Parsing/Error.mli > Parsing/Error.mli.depends
+# Target: Parsing/lexer.mll, tags: { extension:mll, file:Parsing/lexer.mll, lexer, ocaml, ocamllex, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamllex -q Parsing/lexer.mll
+# Target: Parsing/lexer.ml.depends, tags: { extension:ml, file:Parsing/lexer.ml, ocaml, ocamldep, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamldep -modules Parsing/lexer.ml > Parsing/lexer.ml.depends
+# Target: Parsing/AST.cmo, tags: { byte, compile, extension:cmo, extension:ml, file:Parsing/AST.cmo, file:Parsing/AST.ml, implem, ocaml, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamlc -c -w a -I Parsing -I Typing -I Evaluator -I Compiling -I Main -I Utils -o Parsing/AST.cmo Parsing/AST.ml
+# Target: Parsing/Error.cmi, tags: { byte, compile, extension:mli, file:Parsing/Error.mli, interf, ocaml, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamlc -c -w a -I Parsing -I Typing -I Evaluator -I Compiling -I Main -I Utils -o Parsing/Error.cmi Parsing/Error.mli
+# Target: Parsing/lexer.cmo, tags: { byte, compile, extension:cmo, extension:ml, file:Parsing/lexer.cmo, file:Parsing/lexer.ml, implem, ocaml, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamlc -c -w a -I Parsing -I Typing -I Evaluator -I Compiling -I Main -I Utils -o Parsing/lexer.cmo Parsing/lexer.ml
+# Target: Main/Compile.cmo, tags: { byte, compile, extension:cmo, extension:ml, file:Main/Compile.cmo, file:Main/Compile.ml, implem, ocaml, quiet, traverse, use_menhir, warn_a }
+/usr/bin/ocamlc -c -w a -I Main -I Typing -I Parsing -I Evaluator -I Compiling -I Utils -o Main/Compile.cmo Main/Compile.ml
++ /usr/bin/ocamlc -c -w a -I Main -I Typing -I Parsing -I Evaluator -I Compiling -I Utils -o Main/Compile.cmo Main/Compile.ml
+File "Main/Compile.ml", line 1, characters 5-11:
+Error: Unbound module Parser
+Command exited with code 2.
+# Compilation unsuccessful.

@@ -1,0 +1,67 @@
+
+type type_att= 
+  | TInt of int
+  | TBool of bool
+  | TString of string
+  | TRef of int				(* valeur qui correspond à l'adresse des objets contenus dans le tas*)
+  | TNull 
+  | TNom of string 	(* valeur particulière qui correspond à l'utilisation de nom variable dans un programme*)
+  | TAttr of string * string  		(* valeur particulière qui correspond à l'utilisation de nom d'attributs d'objet dans un programme'*)
+
+
+
+type descripteur_objet =
+{
+    nom_obj : string;
+    type_obj : string;
+    attributs_obj : (string, type_att) Hashtbl.t;
+}
+
+type descripteur_classe =
+{
+	nom_classe : string;
+        classe_parent : string;
+	methodes_classe : (string, astmethod) Hashtbl.t;		
+        constructeurs_classe : (string, astconst) Hashtbl.t;
+        attributs_classe : (string,descripteur_objet) Hashtbl.t;
+        
+}
+
+type descripteurs_obj =
+  | ObjectDescriptor of descripteur_objet
+  | IntegerDescriptor of int  
+  | StringDescriptor of string 
+  | NullObject 
+ 
+  
+  
+type descripteurs_cl=
+  | ClassDescriptor of descripteur_classe
+  | ObjectClass of descripteur_classe (* allocation des classes particulières *)
+  | StringClass
+  | IntegerClass
+  | BooleanClass
+
+type tables = 
+{
+  table_methodes : (string, astmethod) Hashtbl.t;
+  table_attclasses: (string, descripteur_cl) Hashtbl.t
+}
+(* construire la table pour les attributs de la classe*)
+
+let build_classe_table  
+ 
+(* ajouter les méthodes de la classe à la table des méthodes *)
+
+ let ajouter_methodes 
+
+
+
+
+(* si la classe nest pas compilee on compile sa classe mere *)
+
+
+(* fonction compile *)
+
+let compile =
+
