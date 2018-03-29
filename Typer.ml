@@ -1,0 +1,445 @@
+open AST
+open Location
+open Type
+
+exception Unknown_Class of string
+exception InvalidExpression of string
+exception Typemismatch of string
+exception Notyp_arg
+exception Invalid_arg
+exception IndefinedType of string
+exception Unboundmethod of string
+
+
+type function_desc = {
+  ftype: Type.t;
+  fargs: argument list
+}
+
+type env_classe = {
+  classe_parent : Type.ref_type;
+  constructeurs : (string, function_desc) Hashtbl.t;
+   methodes : (string, function_desc) Hashtbl.t;
+   attributs : (string, Type.t) Hashtbl.t;
+  
+}
+type gen_env = {
+  classes : (string, env_classe) Hashtbl.t ;
+  mutable current : string
+}
+
+
+
+
+
+
+
+let vType v =
+  match v with
+  | Null -> None
+  | Boolean b -> Some(Type.Primitive(Type.Boolean)) 
+  | Char c -> Some(Type.Primitive(Type.Char))
+  | Int i -> Some(Type.Primitive(Type.Int))
+  | Float f -> Some(Type.Primitive(Type.Float))
+  | String s -> Some(Type.Ref({ tpath = []; tid = "String" })) 
+
+type env = {
+  return_type: Type.t;
+  vars: (string, Type.t) Hashtbl.t
+}
+
+
+
+
+
+let rec getListLast (l:string list) : (string list)*string=
+	match l with
+	| [] -> ([],"")
+	| last::[] -> ([],last)
+	| head::tail -> let (h,t) = getListLast tail in (head::h,t)
+
+let raise_type_mismatch c x y =
+  if c <> Some(Type.Primitive(Type.Boolean)) then raise(InvalidExpression("Le test doit être de type booleen"));
+  match x, y with
+  | Some(Type.Primitive(_)), None -> raise(Typemismatch("Deuxieme argument de type None"))
+  | None, Some(Type.Primitive(_)) -> raise(Typemismatch("Premier argument de type None"))
+  | Some(typ1), Some(typ2) -> if typ1 <> typ2 then raise(Typemismatch("Types non compatibles"))
+
+let compare_call arg b =
+  match arg.etype with
+  | None -> raise(Notyp_arg)
+  | Some(t) -> if t <> b.ptype then raise(Invalid_arg)
+
+let compare_arguments name args info = if List.length args <> List.length info.fargs then ()
+  else try 
+      List.iter2 compare_call args info.fargs;
+      raise(InvalidExpression("Le test doit être de type booleen"))
+	with | Invalid_arg -> ()
+
+let rec check_array_type exp =
+  match exp with
+  | [] -> ()
+  | head::tail -> (match t with
+    | [] -> ()
+    | h2::t2 -> if head.etype <> h2.etype then raise(InvalidExpression("Le type du tableau est invalide")));
+ check_array_type tail (* ici check_array_type au lieu de check_array_list_type*)
+
+(* fonction pour l'appel des méthodes *)
+ let call_function methode args gen_env classe =
+ let am= (Hashtbl.find gen_env.classes classe).methodes 
+ if (Hashtbl.mem am methode)<> false then
+
+          List.iter (compare_arguments methode args)(Hashtbl.find_all am methode);
+
+        else 
+        raise exception(Unboundmethod(methode))
+
+
+
+let rec checkTypeExpression gen_env env e =
+  match e.edesc with
+  | New(None, l, exp) -> List.iter (checkTypeExpression gen_env env) exps;
+    let (nl, last) = getListLast l in
+    if (Hashtbl.mem gen_env.classes last) <> true
+    then raise(Unknown_class("la classe n'existe pas"))
+    else
+      e.etype <- let constructeurs = (Hashtbl.find gen_env.classes last).constructeurs in
+      if (Hashtbl.length constructeurs == 0 && List.length exp == 0) then(* Some(Type.Ref({ tpath = []; tid = last }))  *)
+          List.iter (compare_arguments last exp) (Hashtbl.find_all constructeurs last);
+          raise(Unknown_constructor("Constructeur Inconnu"))
+       
+  | NewArray(t, l, exp)-> 
+			(match exp with
+				|None -> e.etype <- Some(Type.Array(t, List.length l))
+				|Some ep-> e.etype <- Some(Type.Array(t, List.length l)) 
+				)
+  | Call(exp, str, l)->
+			(match exp with
+				|None ->List.iter (checkTypeExpression gen_env env) l;
+				|Some ep->List.iter (checkTypeExpression gen_env env) l; checkTypeExpression gen_env env ep;
+					 (match ep with
+    						 | { edesc = Name(id) } -> let cname = Type.stringOfOpt ep.etype in 
+						    e.etype <- call_function str l gen_env cname))
+
+
+
+
+  | Attr(exp, str) -> checkTypeExpression gen_env env exp;
+    (match exp with
+     | { edesc = Name(id) } ->
+     let cname = Type.stringOfOpt exp.etype in
+     let att = (Hashtbl.find gen_env.classes cname).attributs in
+     e.etype <- (if Hashtbl.mem attrs str <> false
+       then Some(Hashtbl.find att str)
+       else raise(InvalidExpression("Cette variable n'est pas connue"))))
+
+  | If(exp1, exp2, exp3) -> checkTypeExpression gen_env env exp1; checkTypeExpression gen_env env exp2; checkTypeExpression gen_env env exp3
+
+  | Val v -> e.etype <- (match v with
+					| String s -> (Type.Ref { tpath = [] ; tid = "String" })
+					| Int i -> (Type.Primitive Int)
+					| Float f -> (Type.Primitive Float)
+					| Char c -> (Type.Primitive Char)
+					| Null ->  None
+					| Boolean b -> (Type.Primitive Boolean)
+)
+
+  | Name(name) -> e.etype <- if (Hashtbl.mem env.vars_type name) <> true
+    then (if (Hashtbl.mem (Hashtbl.find gen_env.classes gen_env.current).attributs name) <> true
+      then raise(InvalidExpression("Cette variable n'est pas connue"))
+      else Some(Hashtbl.find (Hashtbl.find gen_env.classes gen_env.current).attributs name))
+    else Some(Hashtbl.find env.vars_type name)
+  | ArrayInit(exp) -> List.iter (checkTypeExpression gen_env env) exp;
+    check_array_type exp;
+    e.etype <- (match (List.hd exp).etype with
+      | Some(t) -> Some(Type.Array(t, 1)))
+ 
+  | AssignExp(e1, op, e2) -> checkTypeExpression gen_env env e1; checkTypeExpression gen_env env e2;
+    if(e1.etype=e2.etype)
+	then (*e1.etype *)
+    e.etype <- e1.etype
+  | Post(exp, op) -> checkTypeExpression gen_env env exp;
+	let t=exp.etype    in
+	match t with
+				| Type.Primitive t1 -> (
+					match t with
+					| Boolean -> raise (InvalidExpression ("Pas adapté aux booleens"))
+					| _ -> t1
+				)
+				| _ -> raise (InvalidExpression (""))
+  | Pre(op, exp) -> checkTypeExpression gen_env env exp;
+  	match op with
+  	| Op_not -> if exp.etype <> Some(Type.Primitive(Type.Boolean)) then raise(InvalidExpression ("Le type de l'expression n'est pas adéquat avec cette opération"))
+  	| Op_bnot -> if exp.etype <> Some(Type.Primitive(Type.Int)) then raise(InvalidExpression ("Le type de l'expression n'est pas adéquat avec cette opération"))
+  	| Op_neg | Op_incr | Op_decr | Op_plus -> if ( exp.etype<> Some(Type.Primitive(Type.Int)) && x <> Some(Type.Primitive		(Type.Float))) then raise(InvalidExpression ("Le type de l'expression n'est pas adéquat avec cette opération"))
+	|_ -> e.etype <- exp.etype
+  
+  | Op(e1, op, e2) -> checkTypeExpression gen_env env e1; checkTypeExpression gen_env env e2;
+    (match op with
+    | Op_cor | Op_cand
+    | Op_eq | Op_ne | Op_gt | Op_lt | Op_ge | Op_le -> e.etype <- Some(Type.Primitive(Type.Boolean))
+
+    | Op_or | Op_and | Op_xor
+    | Op_shl | Op_shr | Op_shrr
+    | Op_add | Op_sub | Op_mul | Op_div | Op_mod -> e.etype <- e1.etype)
+
+  | CondOp(e1, e2, e3) -> checkTypeExpression gen_env env e1; checkTypeExpression gen_env env e2; checkTypeExpression gen_env env e3;
+    raise_type_mismatch e1.etype e2.etype e3.etype;
+    if e2.etype <> None then e.etype <- e2.etype else e.etype <- e3.etype
+  | Cast(t, exp) -> checkTypeExpression gen_env env exp; e.etype <- Some(t)
+
+  | Type t -> e.etype <- Some(t)
+
+  | ClassOf t -> e.etype <- Some(t)
+
+  | Instanceof(e1, t) -> checkTypeExpression gen_env env e1; e.etype <- Some(Type.Primitive(Type.Boolean))
+  | VoidClass -> ()
+
+
+(*
+let env_classes_static = 
+	    [
+		{cname="Object"; classe_parent=None; methodes=[]; attributs=[]};                
+		{cname="Boolean"; classe_parent=Some "Object"; methodes=[]; attributs=[]};
+		{cname="Int"; classe_parent=Some "Object"; methodes=[]; attributs=[]};
+                {cname="String"; classe_parent=Some "Object"; methodes=[]; attributs=[]};
+            ]
+*)
+ (* typing a class *)
+let rec type_of_classname current classename loc = 
+	match current with 
+	| [] -> raise (exception(UndefinedType(string_of_classname cn), loc)) 
+	| t::q when t.name = (string_of_classname classename) -> t.name
+        | t::q -> type_of_classname q classename loc
+
+
+(* return class definition *)
+(*
+let rec get_classdef env_classe classname loc = 
+	let func c = 
+		if (c.cname = classname) then true else false
+	in match env_classe with
+	(*| [] -> raise (PError(UndefinedType(classname), loc))  *)
+        | t::q -> if (func t) then t else get_classdef q classname loc
+
+let rec is_parent env_classe classe_parent classe_fille =
+	match classe_parent, classe_fille with 
+	| None, _ | _, None -> false
+	| _, Some classename -> 
+		let classdef_fille = get_classdef env_classe classename Location.none
+		in if (classdef_fille.classe_parent = classe_parent) then true else 
+			
+   is_parent env_classe classe_parent classdef_fille.classe_parent *)
+
+(* check reference type given the global env and real type and apparent type *)
+let rec verif_ref_type ( gen_env : gen_env) (type_apparent : Type.ref_type) (type_reel : Type.ref_type) =
+
+if type_apparent.tid <> type_reel.tid then
+ if type_apparent.tid = "Object" then () else
+	let pere = (Hashtbl.find gen_env.classes type_reel.tid).classe_parent in
+	 if type_apparent <> pere then verif_ref_type gen_env type_apparent pere
+	  else pere.tid = "Object" then raise exception(InvalidType("Object ne peut pas etre pere"))
+     ) 
+
+
+(* add a variable to env *)
+
+let ajouter_variable env name vartype =
+ if Hashtbl.mem env.vars name<> true 
+	then Hashtbl.add env.vars name vartype
+else raise exception("Variable non trouvée")
+
+
+
+(*type variable declaration and add it to env *)
+
+
+let type_declar_var gen_env env decl =
+ match decl with
+	|(t,name,None) -> ajouter_variable env name t
+	|(t, name, Some e) -> checkTypeExpression gen_env env e;
+	 if Some(t) <> e.etype then raise exception(Typemismatch("Types non compatibles")) 
+	|(None , name , None) -> ()
+	|(None , name , Some e) -> ()
+
+	
+
+
+
+
+
+(* add args of method or a constructor to env *)
+
+let ajouter_fonction_args env func = if (Hashtbl.mem env.vars func.pident) <> true 
+then Hashtbl.add env.vars func.pident func.ptype
+
+ else raise exception(Invalid_arg) 
+
+(* type a method and constructor and a create a new env for it *)
+
+
+let type_method gen_env meth = 
+let env = { return_type = meth.return_type ; vars = Hashtbl.create 20 } in
+
+ List.iter (ajouter_fonction_args env ) meth.margstype; 
+List.iter (type_statement gen_env env) meth.mbody
+
+
+
+
+let type_constructeur gen_env construct =
+let cenv = { return_type = Type.Ref ({tpath = [] ; tid = construct.cname }); vars = Hashtbl.create 20} in 
+
+List.iter (ajouter_fonction_args cenv ) construct.cargstype;
+List.iter (type_statement gen_env cenv) construct.cbody
+
+
+(* type an attribute *)
+
+
+let type_attribut gen_env att = match att.adefault with
+	|None -> ()
+	|Some(e) -> checkTypeExpression gen_env { returntype = Type.Void; vars =Hashtbl.create 1} e; let type_attribut = Some(att.atype) in verif_ref_type gen_env type_attribut e.etype
+
+(*check if  *)
+let verif_assign_operator_type x op y =
+  if x <> y then
+    match x with
+     | Some(Type.Ref(type_apparent)) -> if y <> None then
+       (match y with
+        | Some(Type.Ref(type_reel)) -> verif_ref_type gen_env type_apparent type_reel )
+        | _ -> raise exception(Typemismatch("Utilisation non autorisée de l'opérateur "))
+ | _ -> raise exception(UndefinedType("Type null ou non défini"))
+
+
+(*type class *)
+
+let type_class gen_env cl = List.iter ( type_method gen_env) cl.cmethods; List.iter ( type_constructeur gen_env) cl.cconsts; List.iter ( type_attribut gen_env) cl.cattributes
+
+(* compare arguments of a constructor given a list of arguments *)
+
+let args_fonction_compare name args args2 =
+if List.length args <> List.length args2.fargs then ()
+	else try 
+	List.iter2 arg_compare args args2.fargs;
+	 raise exception if all arguments are the same 
+	with 
+	| exception(Invalid_arg)  
+
+
+ let arg_compare x y = ()
+ if  x.ptype <> y.ptype then raise exception(Typemismatch("Types non compatibles")) 	
+
+
+(* add method , constructor , attribut *)
+
+let ajouter_methode gen_env met =
+	let m = (Hashtbl.find gen_env.classes gen_env.current).methods in 
+		(if (Hashtbl.mem m  met.mname) <> true
+			then Hashtbl.add m met.mname {ftype = met.mreturntype ; fargs = met.margstype}
+(* find all methods with the same name, compare args and see if there is an exception *)		
+		else
+		(List.iter ( args_fonction_compare met.mname met.margstype)(Hashtbl.find_all m met.mname);
+		Hashtbl.add m met.mname { ftype = met.mreturntype ; fargs = met.margstype }))
+		
+
+
+let ajouter_attribut gen_env att = 
+	if (Hashtbl.mem (Hashtbl.find gen_env.classes gen_env.current).attributes att.aname) <> true
+ 	then Hashtbl.add (Hashtbl.find gen_env.classes gen_env.current).attributes att.aname att.atype
+	 else raise exception("attribut non défini")
+
+let check_return_type x y =
+  match x, y with
+  | _, None -> raise(InvalidReturn("No Return type "))
+  | x, Some(z) -> if x <> z then raise(InvalidReturn("Return type not appropriated"))
+
+
+let ajouter_constructeur gen_env constr = 
+   let c = (Hashtbl.find gen_env.classes gen_env.current).constructors in 
+	(if (Hashtbl.mem c constr.cname) <> true
+		then Hashtbl.add c constr.cname {ftype=Type.Ref ({tpath=[] ; tid = constr.cname}) ; fargs = constr.cargstype }
+	else
+	(List.iter ( args_fonction_compare constr.cname constr.cargstype) (Hashtbl.find_all c constr.cname);
+	Hashtbl.add c constr.cname {ftype=Type.Ref ({tpath=[] ; tid = constr.cname}) ; fargs = constr.cargstype }))
+
+
+
+(* add a class to gen_env *)
+
+let ajouter_class gen_env cl = 
+	List.iter(ajouter_methode gen env) cl.cmethods;
+	List.iter(ajouter_attribut gen_env) cl.cattributes;
+	List.iter(ajouter_constructeur gen_env) cl.cconsts
+
+
+
+(* create the env for a class *)
+
+
+
+
+let ajouter_env_classe  gen_env t = match t.info with
+	
+	|Inter -> ()
+
+	|Class c -> if (Hashtbl.mem gen_env.classes t.id) <> true
+		then (gen_env.current <- t.id ; Hashtbl.add gen_env.classes gen_env.current {attributs = (Hashtbl.create 20); methodes = (Hashtbl.create 20); constructeurs = (Hashtbl.create 20); classe_parent = c.cparent})
+	 else raise exception(UndefinedType("Type non défini"))
+		ajouter_classe gen_env c
+	
+(* type a program , construct gen_env and type every class and interface *)
+
+let type_classe_inter gen_env t = match t.info with 
+	|Inter -> ()
+	|Class c -> gen_env.current <-t.id; type_class gen_env c
+
+let type_program p =    let p_env = { classes = Hashtbl.create 20; current =""} in
+					List.iter(ajouter_env_classe p_env) p.type_list;
+					List.iter(type_classe_inter p_env)p.type_list
+
+
+
+
+
+let rec type_statement gen_env env statement =
+  match statement with
+  | VarDecl(l) -> List.iter (type_declar_var gen_env env ) l
+  | Block b -> let newscope = { return_type =gen_env.return_type; vars = Hashtbl.copy env.vars } in
+    List.iter (type_statement gen_env newscope) b
+  | Nop -> ()
+  | While(e, s) -> checkTypeExpression gen_env env e; type_statement gen_env env s
+  | For(l, None, exps, s) -> let forScope = { return_type = env.return_type; vars = Hashtbl.copy env.vars } in
+    List.iter (type_for_vardecl gen_env forScope) l;
+    List.iter (checkTypeExpression gen_env forScope) exps; type_statement gen_env forScope s
+  | For(l, Some(exp), exps, s) -> let forScope = { return_type = env.return_type; vars = Hashtbl.copy env.vars } in
+    List.iter (type_for_vardecl gen_env forScope) l;
+    checkTypeExpression gen_env forScope exp; 
+    if exp.etype <> Some(Type.Primitive(Type.Boolean)) then raise(InvalidExpression("Le type doit être de type booleen"));
+    List.iter (checkTypeExpression gen_env forScope) exps; type_statement gen_env forScope s
+  | If(e, s, None) -> checkTypeExpression gen_env env e; type_statement gen_env env s;
+     if e.etype <> Some(Type.Primitive(Type.Boolean)) then raise(InvalidExpression("Le type doit être de type booleen"))
+  | If(e, s1, Some(s2)) -> checkTypeExpression gen_env env e; type_statement gen_env env s1; type_statement gen_env env s2;
+     if e.etype <> Some(Type.Primitive(Type.Boolean)) then raise(InvalidExpression("Le type doit être de type booleen"))
+  | Return None -> if env.return_type <> Type.Void then raise(InvalidReturn("Le type de retour n est pas conforme "))
+  | Return Some(e) -> checkTypeExpression gen_env env e; check_return_type env.return_type e.etype
+  | Throw e -> checkTypeExpression gen_env env e
+  | Try(s1, l, s2) -> List.iter (type_statement gen_env env) s1; List.iter (type_statement gen_env env) s2;
+    List.iter (type_catches gen_env env) l
+  | Expr e -> checkTypeExpression gen_env env e
+
+
+
+
+(* let rec type_for_vardecl  *)
+
+
+
+
+
+(* to do type statement *)(***** done *****)
+(*to do add method and constructor and attributes to env*)  (***** done *****)
+(* typing a program *) (***** done *****)
+(* to do function for calling methods *)(***** done *****)
+(* to do errors and exceptions *)(***** done *****)
+(* testing and building *) (***** in progress *****)
